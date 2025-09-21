@@ -77,7 +77,13 @@ func main() {
 				}
 
 				if playlist.Translate {
+					//yt-dlp обрабатывает название видео чтобы не было проблем с файловой системой
+					//приходится у yt-dlp запрашивать получившееся имя файла
 					filename, err := yt.GetFilename(video.Url)
+					if err != nil {
+						log.Println("[yt-dlp] get filename error:", err)
+						continue
+					}
 					err = votcli.Download(video.Url, ".", filename+".mp3")
 					if err != nil {
 						log.Println("[vot-cli]", err)
