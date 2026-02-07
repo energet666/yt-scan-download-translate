@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"slices"
 	"strings"
 	"syscall"
@@ -151,27 +152,30 @@ func handleVideo(yt *goytdlp.YtDlp, video goytdlp.Video, translate bool) error {
 		return err
 	}
 
-	audioFile := filename + ".mp3"
+	dir := filepath.Dir(filename)
+	base := filepath.Base(filename)
+	audioFile := base + ".mp3"
+	audioPath := filepath.Join(dir, audioFile)
 	translatedVideo := filename + ".[VOT-CLI].mp4"
 
 	slog.Info("Downloading translation", "filename", filename)
-	err = votcli.Download(video.Url, ".", audioFile)
+	err = votcli.Download(video.Url, dir, audioFile)
 	if err != nil {
 		return err
 	}
 
-	if _, err := os.Stat(audioFile); err == nil {
+	if _, err := os.Stat(audioPath); err == nil {
 		slog.Info("Muxing audio with ffmpeg", "output", translatedVideo)
-		err = ffmpeg.AddAudio(filename, audioFile, translatedVideo)
+		err = ffmpeg.AddAudio(filename, audioPath, translatedVideo)
 		if err != nil {
 			return err
 		}
 
-		slog.Info("Cleaning up temporary files", "files", []string{audioFile, filename})
-		os.Remove(audioFile)
+		slog.Info("Cleaning up temporary files", "files", []string{audioPath, filename})
+		os.Remove(audioPath)
 		os.Remove(filename)
 	} else {
-		return fmt.Errorf("audio file not found: %s", audioFile)
+		return fmt.Errorf("audio file not found: %s", audioPath)
 	}
 
 	return nil
