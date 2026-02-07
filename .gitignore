@@ -35,3 +35,4 @@ go.work.sum
 download
 download_tmp
 .DS_Store
+vendor
