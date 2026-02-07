@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"slices"
+	"strings"
 	"syscall"
 	"time"
 
@@ -45,8 +47,16 @@ func main() {
 	}
 	if created {
 		slog.Info("First run: configuration files created in .private/ directory")
-		slog.Info("Please edit .private/config.json and .private/yt-dlp.conf, then restart the service")
-		os.Exit(0)
+		shouldStart, err := setupInteractiveConfig()
+		if err != nil {
+			slog.Error("Interactive setup failed", "error", err)
+			os.Exit(1)
+		}
+		if !shouldStart {
+			slog.Info("Setup complete. You can start the service later.")
+			os.Exit(0)
+		}
+		slog.Info("Setup complete. Starting service...")
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -192,4 +202,105 @@ func checkDependencies() error {
 		}
 	}
 	return nil
+}
+
+func setupInteractiveConfig() (bool, error) {
+	scanner := bufio.NewScanner(os.Stdin)
+	var playlists []Playlist
+	var downloadedVideos []string
+
+	// Загружаем текущий список (он может быть пуст, но файл уже создан из шаблона)
+	_ = loadJSON(downloadedPath, &downloadedVideos)
+
+	fmt.Println("")
+	fmt.Println("--- Interactive Setup ---")
+
+	yt := goytdlp.NewYtDlp(ytDlpConfPath)
+
+	for {
+		fmt.Print("Enter YouTube playlist URL: ")
+		if !scanner.Scan() {
+			break
+		}
+		url := strings.TrimSpace(scanner.Text())
+		if url == "" {
+			fmt.Println("URL cannot be empty, skipping...")
+			continue
+		}
+
+		fmt.Print("Enable automatic translation (y/n)? [y]: ")
+		translate := true
+		if scanner.Scan() {
+			input := strings.ToLower(strings.TrimSpace(scanner.Text()))
+			if input == "n" || input == "no" {
+				translate = false
+			}
+		}
+
+		fmt.Print("Download existing videos in this playlist (y/n)? [y]: ")
+		downloadExisting := true
+		if scanner.Scan() {
+			input := strings.ToLower(strings.TrimSpace(scanner.Text()))
+			if input == "n" || input == "no" {
+				downloadExisting = false
+			}
+		}
+
+		if !downloadExisting {
+			fmt.Println("Skipping existing videos (scanning playlist)...")
+			videos, err := yt.ScanPlaylist(url)
+			if err != nil {
+				fmt.Printf("Warning: could not scan playlist to skip videos: %v\n", err)
+			} else {
+				for _, v := range videos {
+					if !slices.Contains(downloadedVideos, v.Id) {
+						downloadedVideos = append(downloadedVideos, v.Id)
+					}
+				}
+				fmt.Printf("Marked %d videos as already downloaded.\n", len(videos))
+			}
+		}
+
+		playlists = append(playlists, Playlist{
+			PlaylistURL: url,
+			Translate:   translate,
+		})
+
+		fmt.Print("Add another playlist (y/n)? [n]: ")
+		if scanner.Scan() {
+			input := strings.ToLower(strings.TrimSpace(scanner.Text()))
+			if input != "y" && input != "yes" {
+				break
+			}
+		} else {
+			break
+		}
+	}
+
+	if len(playlists) == 0 {
+		return false, fmt.Errorf("no playlists configured")
+	}
+
+	// Сохраняем и плейлисты, и список пропущенных видео
+	if err := saveJSON(configPath, playlists); err != nil {
+		return false, fmt.Errorf("saving config: %w", err)
+	}
+	if err := saveJSON(downloadedPath, downloadedVideos); err != nil {
+		return false, fmt.Errorf("saving downloaded list: %w", err)
+	}
+
+	fmt.Printf("Configuration saved with %d playlist(s)\n", len(playlists))
+
+	fmt.Print("Launch the service now (y/n)? [y]: ")
+	shouldStart := true
+	if scanner.Scan() {
+		input := strings.ToLower(strings.TrimSpace(scanner.Text()))
+		if input == "n" || input == "no" {
+			shouldStart = false
+		}
+	}
+
+	fmt.Println("-------------------------")
+	fmt.Println("")
+	return shouldStart, nil
 }
