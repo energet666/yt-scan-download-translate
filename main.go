@@ -15,8 +15,8 @@ import (
 	"syscall"
 	"time"
 
-	ffmpeg "github.com/energet666/goffmpeg"
 	goytdlp "github.com/energet666/goytdlp"
+	"github.com/energet666/yt-scan-download-translate/ffmpeg"
 	"github.com/energet666/yt-scan-download-translate/votclilive"
 )
 
