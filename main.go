@@ -16,8 +16,8 @@ import (
 	"time"
 
 	ffmpeg "github.com/energet666/goffmpeg"
-	votcli "github.com/energet666/govotcli"
 	goytdlp "github.com/energet666/goytdlp"
+	"github.com/energet666/yt-scan-download-translate/votclilive"
 )
 
 type Playlist struct {
@@ -156,10 +156,10 @@ func handleVideo(yt *goytdlp.YtDlp, video goytdlp.Video, translate bool) error {
 	base := filepath.Base(filename)
 	audioFile := base + ".mp3"
 	audioPath := filepath.Join(dir, audioFile)
-	translatedVideo := filename + ".[VOT-CLI].mp4"
+	translatedVideo := filename + ".[VOT-CLI-LIVE].mp4"
 
 	slog.Info("Downloading translation", "filename", filename)
-	err = votcli.Download(video.Url, dir, audioFile)
+	err = votclilive.Download(video.Url, dir, audioFile)
 	if err != nil {
 		return err
 	}
@@ -198,7 +198,7 @@ func saveJSON(path string, v interface{}) error {
 }
 
 func checkDependencies() error {
-	deps := []string{"yt-dlp", "ffmpeg", "vot-cli"}
+	deps := []string{"yt-dlp", "ffmpeg", "vot-cli-live"}
 	for _, dep := range deps {
 		_, err := exec.LookPath(dep)
 		if err != nil {

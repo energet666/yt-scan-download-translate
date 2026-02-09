@@ -1,6 +1,4 @@
 github.com/energet666/goffmpeg v0.0.0-20250920165736-c5e7b0c73e30 h1:5SVtxB78KZ6Erk2gsR7YQGFPPDeMelLvmvp43L80S0E=
 github.com/energet666/goffmpeg v0.0.0-20250920165736-c5e7b0c73e30/go.mod h1:zpBRNTKyirrN8A8HS3ZZStm3Lu8yHheI9MJZoXHqIJk=
-github.com/energet666/govotcli v0.0.0-20250920153118-607adec9f34a h1:Lj3VwFD9BNXHRIOYrlOA5AOuLlHtjGrehwIxStDdVQU=
-github.com/energet666/govotcli v0.0.0-20250920153118-607adec9f34a/go.mod h1:e58tYEUDFk/dFFMCEzjOIZ8CeF3VVhok6CUsYxg9mnk=
 github.com/energet666/goytdlp v0.0.0-20250920145651-e4317ef4da4a h1:sjJp0db49DdyqSyURb1lN0XsiYFOvNqDq8GY8mhKcCk=
 github.com/energet666/goytdlp v0.0.0-20250920145651-e4317ef4da4a/go.mod h1:24XAECLHBoD5RIaQKJuVBDS8yXx2W3WZlHGc8BdyErM=
