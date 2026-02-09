@@ -1,26 +1,45 @@
 package main
 
-import "os"
+import (
+	"os"
+	"path/filepath"
+)
 
 func createConfigsIfNotExist() (bool, error) {
-	entries, err := os.ReadDir("templates")
+	const (
+		templatesDir = "templates"
+		targetDir    = ".private"
+	)
+
+	entries, err := os.ReadDir(templatesDir)
 	if err != nil {
 		return false, err
 	}
-	created := false
-	for _, f := range entries {
-		_, err := os.Stat(".private/" + f.Name())
-		if err != nil {
-			if os.IsNotExist(err) {
-				err := copyFile("templates/"+f.Name(), ".private/"+f.Name())
-				if err != nil {
-					return false, err
-				}
-				created = true
-			} else {
-				return false, err
-			}
-		}
+
+	// Убедимся, что целевая директория существует
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return false, err
 	}
+
+	var created bool
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		targetPath := filepath.Join(targetDir, entry.Name())
+		if _, err := os.Stat(targetPath); err == nil {
+			continue
+		} else if !os.IsNotExist(err) {
+			return false, err
+		}
+
+		srcPath := filepath.Join(templatesDir, entry.Name())
+		if err := copyFile(srcPath, targetPath); err != nil {
+			return false, err
+		}
+		created = true
+	}
+
 	return created, nil
 }
