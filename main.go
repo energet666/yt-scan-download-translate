@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -169,6 +170,9 @@ func handleVideo(yt *goytdlp.YtDlp, video goytdlp.Video, translate bool) error {
 			"attempt", fmt.Sprintf("%d/%d", attempt, maxLiveRetries))
 
 		lastErr = votclilive.Download(video.Url, dir, audioFile, "live")
+		if errors.Is(lastErr, votclilive.ErrNoSpeech) {
+			break
+		}
 		if lastErr == nil {
 			if _, err := os.Stat(audioPath); err == nil {
 				break // success
@@ -184,6 +188,13 @@ func handleVideo(yt *goytdlp.YtDlp, video goytdlp.Video, translate bool) error {
 		os.Remove(audioPath)
 	}
 
+	// No speech in video — skip translation, keep original
+	if errors.Is(lastErr, votclilive.ErrNoSpeech) {
+		slog.Info("Video has no speech, skipping translation", "filename", filename)
+		os.Remove(audioPath)
+		return nil
+	}
+
 	// Fallback to TTS voice style if all live attempts failed
 	if lastErr != nil {
 		slog.Warn("All live voice attempts failed, falling back to TTS",
@@ -191,6 +202,11 @@ func handleVideo(yt *goytdlp.YtDlp, video goytdlp.Video, translate bool) error {
 			"lastError", lastErr)
 
 		err = votclilive.Download(video.Url, dir, audioFile, "tts")
+		if errors.Is(err, votclilive.ErrNoSpeech) {
+			slog.Info("Video has no speech, skipping translation", "filename", filename)
+			os.Remove(audioPath)
+			return nil
+		}
 		if err != nil {
 			return fmt.Errorf("both live and tts voice styles failed: live: %w, tts: %v", lastErr, err)
 		}
