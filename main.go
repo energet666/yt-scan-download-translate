@@ -137,6 +137,8 @@ func runScanCycle(ctx context.Context) error {
 	return nil
 }
 
+const maxLiveRetries = 3
+
 func handleVideo(yt *goytdlp.YtDlp, video goytdlp.Video, translate bool) error {
 	err := yt.Download(video.Url)
 	if err != nil {
@@ -156,27 +158,65 @@ func handleVideo(yt *goytdlp.YtDlp, video goytdlp.Video, translate bool) error {
 	base := filepath.Base(filename)
 	audioFile := base + ".mp3"
 	audioPath := filepath.Join(dir, audioFile)
-	translatedVideo := filename + ".[VOT-CLI-LIVE].mp4"
 
-	slog.Info("Downloading translation", "filename", filename)
-	err = votclilive.Download(video.Url, dir, audioFile)
+	usedFallback := false
+
+	// Try vot-cli-live up to maxLiveRetries times
+	var lastErr error
+	for attempt := 1; attempt <= maxLiveRetries; attempt++ {
+		slog.Info("Downloading translation (live)",
+			"filename", filename,
+			"attempt", fmt.Sprintf("%d/%d", attempt, maxLiveRetries))
+
+		lastErr = votclilive.Download(video.Url, dir, audioFile, "live")
+		if lastErr == nil {
+			if _, err := os.Stat(audioPath); err == nil {
+				break // success
+			}
+			lastErr = fmt.Errorf("audio file not found after vot-cli-live: %s", audioPath)
+		}
+
+		slog.Warn("vot-cli-live attempt failed",
+			"attempt", attempt,
+			"error", lastErr)
+
+		// Clean up partial audio file if any
+		os.Remove(audioPath)
+	}
+
+	// Fallback to TTS voice style if all live attempts failed
+	if lastErr != nil {
+		slog.Warn("All live voice attempts failed, falling back to TTS",
+			"retries", maxLiveRetries,
+			"lastError", lastErr)
+
+		err = votclilive.Download(video.Url, dir, audioFile, "tts")
+		if err != nil {
+			return fmt.Errorf("both live and tts voice styles failed: live: %w, tts: %v", lastErr, err)
+		}
+
+		if _, err := os.Stat(audioPath); err != nil {
+			return fmt.Errorf("audio file not found after TTS fallback: %s", audioPath)
+		}
+
+		usedFallback = true
+	}
+
+	suffix := ".[VOT-CLI-LIVE].mp4"
+	if usedFallback {
+		suffix = ".[VOT-CLI-TTS].mp4"
+	}
+	translatedVideo := filename + suffix
+
+	slog.Info("Muxing audio with ffmpeg", "output", translatedVideo)
+	err = ffmpeg.AddAudio(filename, audioPath, translatedVideo)
 	if err != nil {
 		return err
 	}
 
-	if _, err := os.Stat(audioPath); err == nil {
-		slog.Info("Muxing audio with ffmpeg", "output", translatedVideo)
-		err = ffmpeg.AddAudio(filename, audioPath, translatedVideo)
-		if err != nil {
-			return err
-		}
-
-		slog.Info("Cleaning up temporary files", "files", []string{audioPath, filename})
-		os.Remove(audioPath)
-		os.Remove(filename)
-	} else {
-		return fmt.Errorf("audio file not found: %s", audioPath)
-	}
+	slog.Info("Cleaning up temporary files", "files", []string{audioPath, filename})
+	os.Remove(audioPath)
+	os.Remove(filename)
 
 	return nil
 }
