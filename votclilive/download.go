@@ -28,16 +28,17 @@ func Download(url string, path string, filename string, voiceStyle string) error
 		url,
 	}
 	cmd := exec.CommandContext(ctx, "vot-cli-live", args...)
-	cmd.Stdout = os.Stdout
 
-	// Capture stderr while still printing it to console
-	var stderrBuf bytes.Buffer
+	// Capture both stdout and stderr while still printing to console
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = io.MultiWriter(os.Stdout, &stdoutBuf)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
 
 	err := cmd.Run()
 
-	// Check for "no speech" message regardless of exit code
-	if strings.Contains(stderrBuf.String(), "нет речи") {
+	// Check for "no speech" message in both stdout and stderr
+	combined := stdoutBuf.String() + stderrBuf.String()
+	if strings.Contains(combined, "нет речи") {
 		return ErrNoSpeech
 	}
 
