@@ -58,7 +58,7 @@ This is the non-obvious part of the codebase ([main.go](main.go)):
 2. Call `votclilive.Download(..., "live")` up to `maxLiveRetries` (3) times. Success requires *both* a nil error *and* the `.mp3` actually existing on disk — `vot-cli-live` can exit 0 without producing output, so the `os.Stat` check is load-bearing. Partial `.mp3` files are removed between attempts.
 3. If all live attempts fail, fall back once to `"tts"` voice style.
 4. `ErrNoSpeech` at any point short-circuits: no translation, no ffmpeg, original video kept, and the video is still marked as processed.
-5. `ffmpeg.AddAudio` muxes original audio at `volume=0.2` with the translated track at `1.0` (video stream copied, audio re-encoded to AAC).
+5. `ffmpeg.AddAudio` muxes original audio at `volume=0.2` with the translated track at `1.0` (video stream copied, audio re-encoded to AAC). The `amix` **must** keep `normalize=0` — the default `normalize=1` divides every input by the input count, which silently costs 6 dB on the translated voice; `alimiter` after the mix is what makes `normalize=0` safe from clipping.
 6. On success both the `.mp3` and the **original video file are deleted** — only the muxed output survives.
 
 Output filename encodes which path was taken: `<original>.[VOT-CLI-LIVE].mp4` or `<original>.[VOT-CLI-TTS].mp4`.
